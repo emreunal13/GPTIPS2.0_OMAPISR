@@ -15,6 +15,8 @@ We modified GPTIPS-2 core files and added new MATLAB functions to support:
 - 3-D Pareto front
 - New joint coefficient optimization (using Nelder-Mead and SVD-based least squares)
 
+![Nikuradse's Friction Factor with GPTIPS_OMAPISR](CANDIDATE_1_MODIFIED.jpg)
+
 ## Upstream & license
 This repository is based on **GPTIPS-2** by Dom Searson, licensed under the **GNU GPL v3.0**.
 We modified GPTIPS-2 core files and added additional modules for physics-informed symbolic regression
