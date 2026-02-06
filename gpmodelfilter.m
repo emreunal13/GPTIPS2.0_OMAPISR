@@ -271,12 +271,43 @@ classdef gpmodelfilter
                return;
             end
             
-            %pareto rank 1 filter
+
+            % pareto rank 1 filter
             if obj.paretoFront
                 disp('Computing pareto front on training data...');
-                paretoInds = ndfsort_rank1([(1-gp.fitness.r2train) gp.fitness.complexity]);
-                filterInds = filterInds & paretoInds;
+
+                f = gp.fitness.r2train(:);       % want to MAXIMISE R^2
+                c = gp.fitness.complexity(:);    % want to MINIMISE complexity
+
+                use_constraints = isfield(gp.fitness,'constraint_values') && ...
+                    ~isempty(gp.fitness.constraint_values)  && ...
+                    numel(gp.fitness.constraint_values) == numel(f);
+
+                if use_constraints
+                    % Extract Cscore per individual, clamp to [0,1], force real
+                    Cscore = ones(numel(f),1);   % default worst if missing
+                    for i = 1:numel(f)
+                        ci = gp.fitness.constraint_values{i};
+                        if isstruct(ci) && isfield(ci,'Cscore') && ~isempty(ci.Cscore) && isfinite(ci.Cscore)
+                            Cscore(i) = min(max(real(ci.Cscore),0),1);
+                        end
+                    end
+
+                    % 3-objective: minimise (1-R2), complexity, Cscore
+                    P = [1 - f, c, Cscore];
+
+                else
+                    % Original 2-objective behaviour: minimise (1-R2), complexity
+                    P = [1 - f, c];
+                end
+
+                % Rank-1 mask (0/1) over the *full* population
+                paretoMask = logical(ndfsort_rank1(P));
+
+                % Combine with existing filters
+                filterInds = filterInds & paretoMask;
             end
+
             
             %next apply vars filters
             if ~isinf(obj.maxVars) || obj.minVars || ~isempty(obj.includeVars) || ~isempty(obj.excludeVars)

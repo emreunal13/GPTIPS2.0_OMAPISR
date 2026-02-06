@@ -73,7 +73,7 @@ if gp.runcontrol.parallel.enable
             end
             
             if verLessThan('matlab','8.3.0')
-                matlabpool close;
+                parpool close;
             else
                 delete(gcp('nocreate'));
             end
@@ -88,7 +88,7 @@ if gp.runcontrol.parallel.enable
             end
             
             if verLessThan('matlab','8.3.0')
-                matlabpool close force local;
+                parpool close force local;
                 eval(['matlabpool ' num2str(gp.runcontrol.parallel.numWorkers)]);
             else
                 delete(gcp('nocreate'));
@@ -134,7 +134,7 @@ function x = getCurrentPoolSize
 if verLessThan('matlab', '7.7.0')
     x = pool_size;
 elseif verLessThan('matlab','8.3.0')
-    x = matlabpool('size');
+    x = parpool('size');
 else
     pool = gcp('nocreate');
     

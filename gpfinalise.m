@@ -43,13 +43,50 @@ if mgregressmodel
 end
 
 %perform final population processing
-for i=1:gp.runcontrol.pop_size
+for i = 1:gp.runcontrol.pop_size
     
-    %compute node count and expressional complexity for each individual
-    %regardless of whether node count or complexity was used as fitness
-    %selection criteria during run.
-    gp.fitness.complexity(i,1) = getcomplexity(gp.pop{i});
-    gp.fitness.nodecount(i,1) = getnumnodes(gp.pop{i});
+    
+    % 1) Complexity / nodecount computation 
+    
+    % Preview string for debug (first gene if multigene)
+    exprPreview = '';
+    indiv = gp.pop{i};
+    if iscell(indiv) && ~isempty(indiv) && ischar(indiv{1})
+        exprPreview = indiv{1};
+    elseif ischar(indiv)
+        exprPreview = indiv;
+    end
+
+    % expressional complexity 
+    try
+        gp.fitness.complexity(i,1) = getcomplexity(gp.pop{i});
+    catch ME
+        warning(['gpfinalise: getcomplexity failed for individual %d: %s'], ...
+                 i, ME.message);
+        if ~isempty(exprPreview)
+            warning('  Offending expression (first gene): "%s"', exprPreview);
+        end
+        % fallback: try node-based proxy; if that also fails, mark NaN
+        try
+            gp.fitness.complexity(i,1) = getnumnodes(gp.pop{i});
+        catch ME2
+            warning(['gpfinalise: fallback getnumnodes also failed for individual %d: %s'], ...
+                     i, ME2.message);
+            gp.fitness.complexity(i,1) = NaN;
+        end
+    end
+
+    % node count 
+    try
+        gp.fitness.nodecount(i,1) = getnumnodes(gp.pop{i});
+    catch ME
+        warning(['gpfinalise: getnumnodes failed for individual %d: %s'], ...
+                 i, ME.message);
+        if ~isempty(exprPreview)
+            warning('  Offending expression (first gene): "%s"', exprPreview);
+        end
+        gp.fitness.nodecount(i,1) = NaN;
+    end
     
     %if the run was a multigene symbolic regression run then calculate all
     %R2 values and add them to the GP data structure.

@@ -65,7 +65,7 @@ end
 %for multigene regression check data
 if strncmpi(func2str(gp.fitness.fitfun),'regressmulti',12) || strncmpi(func2str(gp.fitness.fitfun),'binaryclass',11)
     
-    if ~isfield(gp.userdata,'xtrain') || ~isfield(gp.userdata,'xtrain') ...
+    if ~isfield(gp.userdata,'xtrain') || ~isfield(gp.userdata,'ytrain') ...
             || isempty(gp.userdata.xtrain) || isempty(gp.userdata.ytrain)
         error('The fields gp.userdata.xtrain and gp.userdata.ytrain must be populated with data.');
     end

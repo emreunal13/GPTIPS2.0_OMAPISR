@@ -1,72 +1,109 @@
 function gp = evalfitness_par(gp)
-%EVALFITNESS_PAR Calls the user specified fitness function (parallel version).
-%
-%   GP = EVALFITNESS_PAR(GP) evaluates the the fitnesses of individuals
-%   stored in the GP structure and updates various other fields of GP
-%   accordingly.
-%
-%   This has the same functionality as EVALFITNESS but makes use of the
-%   Mathworks Parallel Computing Toolbox to distribute the fitness
-%   computations across multiple cores.
-%
-%   Copyright (c) 2009-2015 Dominic Searson
-%
-%   GPTIPS 2
-%
-%   See also TREE2EVALSTR, EVALFITNESS
+%EVALFITNESS_PAR Parallel fitness evaluation (Lamarckian included)
 
 popSize = gp.runcontrol.pop_size;
-evalstrs = cell(popSize,1);
-complexityMeasure = gp.fitness.complexityMeasure;
-complexities = zeros(popSize,1);
-fitfun = gp.fitness.fitfun;
-fitvals = zeros(popSize,1);
-returnvals = cell(popSize,1);
+fitfun  = gp.fitness.fitfun;
 
-if gp.runcontrol.usecache
-    usecache = true;
-else
-    usecache = false;
+% Preallocate
+complexities   = nan(popSize,1);
+fitvals        = nan(popSize,1);
+returnvals     = cell(popSize,1);
+constraintvals = cell(popSize,1);
+constrScores   = nan(popSize,1);
+paramvals      = cell(popSize,1);   % <- full param vectors (theta + ERCs)
+newPop         = gp.pop;            % <- will hold Lamarckian-updated pop
+
+parfor idx = 1:popSize
+    tempgp = gp;
+    tempgp.state.current_individual = idx;
+
+    try
+        % 1. Complexity
+        if isfield(tempgp.fitness,'complexityMeasure') && tempgp.fitness.complexityMeasure
+            complexities(idx) = double(getcomplexity(tempgp.pop{idx}));
+        else
+            complexities(idx) = double(getnumnodes(tempgp.pop{idx}));
+        end
+
+        % 2. Evaluate Fitness & optimize constants (calls regressmulti_fitfun)
+        evalstr = tree2evalstr(tempgp.pop{idx}, tempgp);
+
+        % Force re-computation to ensure Nelder–Mead runs
+        tempgp.state.force_compute_theta = true;
+
+        [fitness_i, tempgp] = feval(fitfun, evalstr, tempgp);
+
+        % Sanitize Fitness
+        if ~(isnumeric(fitness_i) && isscalar(fitness_i) && isfinite(fitness_i))
+            fitness_i = 1e6;
+        end
+        fitvals(idx) = double(fitness_i);
+
+        % 3. Extract optimized weights (theta)
+        if isfield(tempgp.fitness,'returnvalues') && ...
+           numel(tempgp.fitness.returnvalues) >= idx && ...
+           ~isempty(tempgp.fitness.returnvalues{idx})
+            returnvals{idx} = tempgp.fitness.returnvalues{idx};
+        else
+            returnvals{idx} = [];
+        end
+
+        % 4. Extract full param vector (theta + ERCs), if present
+        if isfield(tempgp.fitness,'param_values') && ...
+           numel(tempgp.fitness.param_values) >= idx && ...
+           ~isempty(tempgp.fitness.param_values{idx})
+            paramvals{idx} = tempgp.fitness.param_values{idx};
+        else
+            paramvals{idx} = [];
+        end
+
+        % 5. Extract constraint scores
+        rvC    = [];
+        cscore = 1.0; % Default worst case
+        if isfield(tempgp.fitness,'constraint_values') && ...
+           numel(tempgp.fitness.constraint_values) >= idx && ...
+           ~isempty(tempgp.fitness.constraint_values{idx})
+            rvC = tempgp.fitness.constraint_values{idx};
+            if isstruct(rvC) && isfield(rvC,'Cscore')
+                cscore = rvC.Cscore;
+            end
+        end
+        constraintvals{idx} = rvC;
+        constrScores(idx)   = cscore;
+
+        % 6. Lamarckian: grab updated individual coming out of fitfun
+        %    (regressmulti_fitfun updated tempgp.pop{idx} via
+        %     update_individual_constants_in_pop)
+        newPop{idx} = tempgp.pop{idx};
+
+    catch
+        % Fallback for crash
+        complexities(idx)   = 1e6;
+        fitvals(idx)        = 1e6;
+        returnvals{idx}     = [];
+        constraintvals{idx} = [];
+        constrScores(idx)   = 1.0;
+        paramvals{idx}      = [];
+        % Keep original gp.pop{idx} in newPop (no Lamarckian change)
+    end
 end
 
-parfor i = 1:popSize;
-    
-    %assign copy of gp inside parfor loop to a temp struct
-    tempgp = gp;
-    
-    %update state of temp variable to index of the individual that is about to
-    %be evaluated
-    tempgp.state.current_individual = i;
-    
-    if usecache && tempgp.fitness.cache.isKey(i)
-        
-        cache = tempgp.fitness.cache(i);
-        complexities(i) = cache.complexity;
-        fitvals(i) = cache.value;
-        returnvals{i} = cache.returnvalues;
-        
-    else
-        
-        %process coded trees into evaluable matlab expressions
-        evalstrs{i} = tree2evalstr(tempgp.pop{i},gp);
-        
-        %store complexity of individual (either number of nodes or tree
-        % "expressional complexity").
-        if complexityMeasure
-            complexities(i) = getcomplexity(tempgp.pop{i});
-        else
-            complexities(i) = getnumnodes(tempgp.pop{i});
-        end
-        
-        %evaluate gp individual using fitness function
-        [fitness,tempgp] = feval(fitfun,evalstrs{i},tempgp);
-        returnvals{i} = tempgp.fitness.returnvalues{i};
-        fitvals(i) = fitness;
-    end
-end %end of parfor loop
+bad = ~isfinite(constrScores);
+constrScores(bad) = 1.0;
 
-%attach returned values to original GP structure
-gp.fitness.values = fitvals;
-gp.fitness.returnvalues = returnvals;
-gp.fitness.complexity = complexities;
+
+% Commit to main structure
+gp.fitness.values            = double(fitvals(:));
+gp.fitness.complexity        = double(complexities(:));
+gp.fitness.returnvalues      = returnvals;
+gp.fitness.constraint_values = constraintvals;
+gp.fitness.param_values      = paramvals;
+gp.pop                       = newPop;   % <- Lamarckian population update
+
+% Multi-Objective MATRIX: [RMSE, Complexity, ConstraintScore]
+gp.fitness.multiobj          = [gp.fitness.values, ...
+                                gp.fitness.complexity, ...
+                                double(constrScores(:))];
+
 gp.state.current_individual = popSize;
+end
