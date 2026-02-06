@@ -1,5 +1,5 @@
 
-# GPTIPS2_OMAPISR
+# GPTIPS2.0_OMAPISR
 
 MATLAB code accompanying the paper **“Order of Magnitude Analysis and Data-Based Physics-Informed Symbolic Regression for Turbulent Pipe Flow”**.
 
