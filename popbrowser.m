@@ -199,17 +199,51 @@ if strncmpi(func2str(gp.fitness.fitfun),'regressmulti',12);
         
     end
     
-    %highlight models on the pareto front with green circles
+        % ---------- highlight Pareto front with green circles ----------
+    % We want the front in (1-R^2, complexity, Cscore) if Cscore exists,
+    % otherwise fall back to (1-R^2, complexity) as in original GPTIPS.
+
+    yvals = yvals(:);  % ensure column
+
+    % X-axis: complexity or nodecount
     if complexityType
-        xrank = ndfsort_rank1([yvals gp.fitness.complexity]);
-        greendots = plot(ax1,gp.fitness.complexity(xrank==1),yvals(xrank==1),'o');
+        xCoord = gp.fitness.complexity(:);
     else
-        xrank = ndfsort_rank1([yvals gp.fitness.nodecount]);
-        greendots = plot(ax1,gp.fitness.nodecount(xrank==1),yvals(xrank==1),'o');
+        xCoord = gp.fitness.nodecount(:);
     end
-    
+
+    % Check if constraint scores are available
+    use_constraints = isfield(gp.fitness,'constraint_values') && ...
+                      ~isempty(gp.fitness.constraint_values)   && ...
+                      numel(gp.fitness.constraint_values) == numel(yvals);
+
+    if use_constraints
+        % Build Cscore vector, clamped to [0,1], real-valued
+        Cscore = ones(numel(yvals),1);   % default worst
+        for i = 1:numel(yvals)
+            ci = gp.fitness.constraint_values{i};
+            if isstruct(ci) && isfield(ci,'Cscore') && ~isempty(ci.Cscore) ...
+                    && isfinite(ci.Cscore)
+                Cscore(i) = min(max(real(ci.Cscore), 0), 1);
+            end
+        end
+
+        % 3-objective Pareto: minimise (1-R^2), complexity, Cscore
+        P = [yvals, xCoord, Cscore];
+
+    else
+        % Original 2-objective Pareto: minimise (1-R^2), complexity
+        P = [yvals, xCoord];
+    end
+
+    xrank = logical(ndfsort_rank1(P));
+
+    greendots = plot(ax1, xCoord(xrank), yvals(xrank), 'o');
     set(greendots,'markerfacecolor','green','markeredgecolor',[0.25 0.25 0.25]);
-    gp.fitness.values = yvals; %for use with datacursor
+
+    % Keep this: datacursor uses fitness.values to locate models in the plot
+    gp.fitness.values = yvals;
+
     
     %plot supplied model
     if ~isempty(ID)

@@ -33,12 +33,34 @@ function position = picknode(expr,nodetype,gp)
 %mask negative constants
 x = strrep(expr,'[-','[#');    
 
-if nodetype == 0 %pick any node
+if nodetype == 0  % pick any node
     
-    %get indices of all function node, constant and input node locations
-    %NB char(97) ='a' and char(122) = 'z' and double('[') = 91
-    xd = double(x);
-    ind = find((xd <= 122 & xd >= 97) | xd==91);
+    % get candidate indices: function letters a–z, and '[' for ERCs
+    xd  = double(x);
+    ind = find((xd <= 122 & xd >= 97) | xd == 91);
+    
+    % ---- IMPORTANT: remove 'e'/'E' that belong to numbers like 1.0e-5 ----
+    if ~isempty(ind)
+        bad = false(size(ind));
+        for k = 1:numel(ind)
+            pos = ind(k);
+            ch  = x(pos);
+            
+            % Only worry about 'e' or 'E'
+            if ch == 'e' || ch == 'E'
+                % Check if it's in a numeric exponent: digit before, digit/+/- after
+                if pos > 1 && isstrprop(x(pos-1),'digit')
+                    if pos < numel(x)
+                        nxt = x(pos+1);
+                        if isstrprop(nxt,'digit') || nxt == '+' || nxt == '-'
+                            bad(k) = true;   % don't treat this as a node
+                        end
+                    end
+                end
+            end
+        end
+        ind(bad) = [];
+    end
    
 elseif nodetype == 3  %just constants
     

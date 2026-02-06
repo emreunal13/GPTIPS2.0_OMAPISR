@@ -117,37 +117,38 @@ if rand >= gp.selection.tournament.p_pareto
     
     ID = tour_ind(bestfitness_tour_ind);
      
-else %Method B: Pareto tournament
-    
-    %pick N individuals at random
+else % Method B: 3-objective Pareto tournament using multiobj
+
+    % pick N individuals at random
     tour_ind = ceil(rand(gp.selection.tournament.size,1)*gp.runcontrol.pop_size);
-    
-    %retrieve fitness values of tournament members
-    tour_fitness = gp.fitness.values(tour_ind);
-    
-    %retrieve complexities of tournament members
-    tour_comp  = gp.fitness.complexity(tour_ind);
-    
-    %perform fast pareto sort on tournament members
-    %and select winner randomly from rank 1 solutions
-    if gp.fitness.minimisation
-        mo = [tour_fitness tour_comp];
-    else
-        mo = [ (-1 *tour_fitness) tour_comp];
+
+    % extract their multi-objective rows: [fitness, complexity, Cscore]
+    if ~isfield(gp.fitness,'multiobj')
+        error('selection: gp.fitness.multiobj missing. Ensure evalfitness sets it.');
     end
-    
-    %remove any 'infs' from consideration and recall if necessary
-    infs= isinf(mo(:,1));
-    mo(infs,:)=[];
-    if isempty(mo)
-        ID = selection(gp);
+    P_sub = gp.fitness.multiobj(tour_ind,:);
+
+    % Remove rows with Inf fitness (if any), like original code
+    infs = isinf(P_sub(:,1));
+    P_sub(infs,:)   = [];
+    tour_ind(infs,:)= [];
+    if isempty(P_sub)
+        ID = selection(gp);  % fallback recurse
         return;
     end
-    
-    tour_ind(infs,:)=[];
-    
-    rank = ndfsort_rank1(mo);
-    rank1_tour_ind = tour_ind(rank == 1);
-    num_rank1 = numel(rank1_tour_ind);
-    ID = rank1_tour_ind(ceil(rand * num_rank1));
+
+    % Non-dominated sort on this local tournament
+    [fronts_sub, ~] = nondominated_sort(P_sub);
+
+    % Rank-1 members in this *tournament*
+    rank1_local = fronts_sub{1};
+    if isempty(rank1_local)
+        % shouldn't happen, but be robust
+        ID = tour_ind(randi(numel(tour_ind)));
+        return;
+    end
+
+    % pick a random rank-1 solution in this tournament
+    winner_local_idx = rank1_local(randi(numel(rank1_local)));
+    ID = tour_ind(winner_local_idx);
 end

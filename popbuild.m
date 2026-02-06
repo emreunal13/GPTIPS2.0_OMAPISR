@@ -38,6 +38,21 @@ end
 %update gen counter
 gp.state.count = gp.state.count + 1;
 
+% deterministic parent ordering (deterministic Pareto-based selection)
+if exist('pareto_order','file')
+    orderedParents = pareto_order(gp);   % vector of indices 1..popSize
+else
+    % fallback: sort by fitness ascending
+    [~, orderedParents] = sort(gp.fitness.values, 'ascend');
+end
+if isempty(orderedParents)
+    orderedParents = (1:gp.runcontrol.pop_size).';
+end
+parentPtr = 1;  % pointer to cycle through orderedParents deterministically
+% -------------------------------------------------------------------
+
+
+
 buildCount = 0;
 
 %loop until the required number of new individuals has been built.
@@ -57,61 +72,53 @@ while buildCount < num2build;
     end
     
     
+    
     %mutation (first select a individual, then a gene, then do ordinary mutate)
     if eventType == 1
-        
-        parentIndex = selection(gp);  %pick the population index of a parent individual using selection operator
+
+        % deterministic parent pick (cyclic)
+        parentIndex = orderedParents(parentPtr);
+        parentPtr = parentPtr + 1;
+        if parentPtr > numel(orderedParents), parentPtr = 1; end
+
         parent = gp.pop{parentIndex};
-        
-        if useMultiGene %if using multigene, extract a target gene
-            numParentGenes = numel(parent);
-            targetGeneIndex = ceil(rand * numParentGenes); %randomly select a gene from parent
-            targetGene = parent{1,targetGeneIndex}; %extract it
+
+        if useMultiGene
+            numParentGenes   = numel(parent);
+            targetGeneIndex  = ceil(rand * numParentGenes);
+            targetGene       = parent{1,targetGeneIndex};
         else
-            targetGeneIndex = 1;
-            targetGene = parent{1};
+            targetGeneIndex  = 1;
+            targetGene       = parent{1};
         end
-        
+
+        % ACTUAL MUTATION 
         mutateSuccess = false;
-        for loop = 1:10	%loop until a successful mutation occurs (max loops=10)
-            
+        for tries = 1:10
             mutatedGene = mutate(targetGene,gp);
-            mutatedGeneDepth = getdepth(mutatedGene);
-            
-            if mutatedGeneDepth <= maxDepth
-                
-                if maxNodesInf
-                    mutateSuccess = true;
-                    break;
-                end
-                
-                mutatedGeneNodes = getnumnodes(mutatedGene);
-                if mutatedGeneNodes <= max_nodes
-                    mutateSuccess = true;
-                    break;
-                end
-            end %end of constraint check
-            
-        end  %end of mutate for loop
-        
-        %if no success then use parent gene
-        if ~mutateSuccess
-            mutatedGene = targetGene;
+            if getnumnodes(mutatedGene) <= max_nodes
+                mutateSuccess = true;
+                break;
+            end
         end
-        
-        %add the mutated individual to new pop
+        if ~mutateSuccess
+            mutatedGene = targetGene;  % fall back
+        end
+
         parent{1,targetGeneIndex} = mutatedGene;
-        newPop{buildCount,1} = parent;
-        
-        %direct reproduction operator
+        newPop{buildCount,1}      = parent;
     elseif eventType == 2
-        
-        parentIndex = selection(gp);  %pick a parent
+
+        % deterministic parent pick (cyclic)
+        parentIndex = orderedParents(parentPtr);
+        parentPtr = parentPtr + 1;
+        if parentPtr > numel(orderedParents), parentPtr = 1; end
+
         parent = gp.pop{parentIndex};
-        
+
         %copy to new population
         newPop{buildCount} = parent;
-        
+
         %store fitness etc of copied individual if cache enabled
         if gp.runcontrol.usecache
             cachedData.complexity = gp.fitness.complexity(parentIndex,1);
@@ -119,31 +126,37 @@ while buildCount < num2build;
             cachedData.value = gp.fitness.values(parentIndex,1);
             gp.fitness.cache(buildCount) = cachedData;
         end
+
         
         %crossover operator - can either pick 'high level' crossover
         %(crosses over entire genes with no tree alteration) or 'low level'
         % which crosses over individual genes at the tree level.
     elseif eventType == 3
-        
+
         highLevelCross = false;
-        
+
         if useMultiGene
-            
             %select crossover type if multigene enabled
             if rand < p_cross_hi
                 highLevelCross = true;
             end
-            
         end
-        
-        %Select Parents
-        parentIndex = selection(gp);
-        dad = gp.pop{parentIndex};
+
+        % deterministic selection of parents 
+        % dad
+        dadIndex = orderedParents(parentPtr);
+        parentPtr = parentPtr + 1;
+        if parentPtr > numel(orderedParents), parentPtr = 1; end
+        dad = gp.pop{dadIndex};
         numDadGenes = numel(dad);
-        
-        parentIndex = selection(gp);
-        mum = gp.pop{parentIndex};
+
+        % mum
+        mumIndex = orderedParents(parentPtr);
+        parentPtr = parentPtr + 1;
+        if parentPtr > numel(orderedParents), parentPtr = 1; end
+        mum = gp.pop{mumIndex};
         numMumGenes = numel(mum);
+        % --------------------------------------------
         
         if highLevelCross
             if numMumGenes>1 || numDadGenes>1
