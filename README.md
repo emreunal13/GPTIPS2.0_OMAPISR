@@ -1,22 +1,23 @@
-# gptips v2.0
-Symbolic XAI explainable machine learning &amp; non-linear regression platform for MATLAB
-Version 2.0 (22nd May 2015)
 
-Contains the **Hypothesis-ML** engine for using ML to build models (version 2.0). This module does not require any additional MATLAB toolboxes.
+# GPTIPS2_OMAPISR
 
-Contains the **Sym-XAI** explainable AI module for interpreting and visualising models and also for simplifying and exporting non-linear regression models (version 2.0). This module requires the additional MATLAB Symbolic Math Toolbox.
+MATLAB code accompanying the paper **“Order of Magnitude Analysis and Data-Based Physics-Informed Symbolic Regression for Turbulent Pipe Flow”**.
 
-The Sym-XAI module components are for use with MATLAB versions up to and including R2017b.
+This repository implements a physics-informed symbolic regression workflow to discover compact correlations for turbulent pipe friction factor **f = f(Re, ε/D)**, targeting accurate reproduction of Nikuradse rough
+pipe trends while maintaining correct smooth/fully-rough asymptotics.
 
-At time of writing, you will get Symbolic Math toolbox errors in MATLAB versions R2018a and above if you use the v2.0 Sym-XAI module. This is due to recent major changes in MATLAB's Symbolic Math Toolbox.
+## Changes to GPTIPS-2 (summary)
 
-Please refer to gptips.org for details
+We modified GPTIPS-2 core files and added new MATLAB functions to support:
+- physics-informed constraints (C1/C2/C3/C4)
+- multi-objective scoring (J_err, J_phys, complexity)
+- plotting and reproducibility scripts for turbulent pipe-flow friction-factor modeling
+- 3-D Pareto front
+- New joint coefficient optimization (using Nelder-Mead and SVD-based least squares)
 
-15th March 2021
+## Upstream & license
+This repository is based on **GPTIPS-2** by Dom Searson, licensed under the **GNU GPL v3.0**.
+We modified GPTIPS-2 core files and added additional modules for physics-informed symbolic regression
+(OMA-based constraints and multi-objective scoring) applied to turbulent pipe-flow friction modeling.
 
-(c) Dominic Searson 2009-2021
-
-searson@gmail.com
-
-https://gptips.org
-
+Accordingly, this repository is distributed under **GPL-3.0**. See `LICENSE.txt`.
