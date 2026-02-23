@@ -1,7 +1,8 @@
 
 # GPTIPS2.0_OMAPISR
 
-MATLAB code accompanying the paper **“Order of Magnitude Analysis and Data-Based Physics-Informed Symbolic Regression for Turbulent Pipe Flow”**.
+MATLAB code accompanying the paper **“Order of Magnitude Analysis and Data-Based Physics-Informed Symbolic Regression for Turbulent Pipe Flow”**. arXiv link for the preprint:
+https://arxiv.org/abs/2602.17082
 
 This repository implements a physics-informed symbolic regression workflow to discover compact correlations for turbulent pipe friction factor **f = f(Re, ε/D)**, targeting accurate reproduction of Nikuradse rough
 pipe trends while maintaining correct smooth/fully-rough asymptotics.
